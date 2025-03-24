@@ -71,7 +71,7 @@ class Database:
         if params:
             if isinstance(params, list) and params and isinstance(params[0], (tuple, list)):
                 await conn.executemany(query, params)  # Asyncpg equivalent of execute_values
-                return {"data": []}  # No rows returned for bulk insert/update
+                return []
             else:
                 data = await conn.fetch(query, *params)
         else:

@@ -12,8 +12,7 @@ def get_api_key(api_key: str = Header(...)):
 
 app = FastAPI()
 secure_router = APIRouter(dependencies=[Depends(get_api_key)])
-
-secure_router.include_router(router_endpoint.router, prefix="/router_endpoint")
+# secure_router.include_router(router_endpoint.router, prefix="/router_endpoint")
 app.include_router(secure_router)
 
 
