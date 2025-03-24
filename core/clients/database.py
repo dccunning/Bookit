@@ -3,12 +3,12 @@ __author__ = 'Dimitri Cunning'
 import os
 import uuid
 import math
-from typing import List
-
 import asyncpg
 import psycopg2
+from typing import List
 from decimal import Decimal
 from datetime import datetime, date, time
+from core.utils.connected_network import on_home_network
 
 
 class Database:
@@ -17,13 +17,13 @@ class Database:
             database: str = os.getenv("DATABASE_NAME"),
             user: str = os.getenv("DATABASE_EXTERNAL_USER"),
             password: str = os.getenv("DATABASE_EXTERNAL_USER_PASSWORD"),
-            host: str = os.getenv("DATABASE_HOST"),
+            host: str = os.getenv("DATABASE_HOME_HOST"),
             port: str = os.getenv("DATABASE_PORT")
     ):
         self.database = database
         self.user = user
         self.password = password
-        self.host = host
+        self.host = host if on_home_network() else os.getenv("DATABASE_AWAY_HOST")
         self.port = port
 
     def __get_db_connection(self):
@@ -46,7 +46,7 @@ class Database:
             port=self.port
         )
 
-    def run_query(self, query: str, params: tuple = None) -> List:
+    def run_query(self, query: str, params: tuple | List = None) -> List | None:
         """Return results for a query executed on the given database."""
         with self.__get_db_connection() as conn:
             with conn.cursor() as cursor:
@@ -55,8 +55,10 @@ class Database:
                     if isinstance(params, list) and params and isinstance(params[0], (tuple, list)):
                         from psycopg2.extras import execute_values
                         execute_values(cursor, query, params)
+                        return None
                     else:
                         cursor.execute(query, params)
+                        return None
                 else:
                     cursor.execute(query)
                 data = cursor.fetchall()
@@ -65,24 +67,27 @@ class Database:
                 json_list = [dict(zip(columns, [serialize_value(val) for val in row])) for row in data]
                 return json_list
 
-    async def arun_query(self, query: str, params: tuple = None) -> List:
+    async def arun_query(self, query: str, params: tuple = None) -> List | None:
         """Asynchronously return results for a query executed on the given database."""
         conn = await self.__aget_db_connection()
-        if params:
-            if isinstance(params, list) and params and isinstance(params[0], (tuple, list)):
-                await conn.executemany(query, params)  # Asyncpg equivalent of execute_values
-                return []
+        try:
+            if params:
+                if isinstance(params, list) and params and isinstance(params[0], (tuple, list)):
+                    await conn.executemany(query, params)  # Asyncpg equivalent of execute_values
+                    return None
+                else:
+                    data = await conn.fetch(query, *params)
             else:
-                data = await conn.fetch(query, *params)
-        else:
-            data = await conn.fetch(query)
+                data = await conn.fetch(query)
 
-        json_list = [
-            {k: serialize_value(v) for k, v in row.items()}
-            for row in data
-        ]
+            json_list = [
+                {k: serialize_value(v) for k, v in row.items()}
+                for row in data
+            ]
 
-        return json_list
+            return json_list
+        finally:
+            await conn.close()
 
 
 def serialize_value(value):
