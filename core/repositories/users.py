@@ -1,6 +1,6 @@
 from typing import Optional
 from core.models.users import User
-from core.utils.database import Database
+from core.clients.database import Database
 from datetime import datetime
 import uuid
 
